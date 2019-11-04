@@ -253,7 +253,7 @@ namespace SnmpGet
                             if (item.Id == UPSChargeRemainingInMinutesOid)
                                 upsData.BatteryRemainingInMinutes = Convert.ToInt32(item.Data.ToString());
                             else if (item.Id == UPSChargeRemainingInPercentageOid)
-                                upsData.BatteryChargeRemainingInPercentage = 100 - Convert.ToInt32(item.Data.ToString());
+                                upsData.BatteryChargeRemainingInPercentage = Convert.ToInt32(item.Data.ToString());
                             else if (item.Id == UPSManufacturerOid)
                                 upsData.Manufacturer = item.Data.ToString();
                             else if (item.Id == UPSSecondsOnBattery)
@@ -294,6 +294,7 @@ namespace SnmpGet
                             {
                                 foreach (var variable in variables.Where(variable => variable.Data.TypeCode == SnmpType.ObjectIdentifier))
                                 {
+                                    Log.Verbose("Alarm data {@Id}, {@Data}", variable.Id.ToString(), variable.Data.ToString());
                                     if (variable.Data.ToString() == new ObjectIdentifier(Alarms.UPSAlarmOnBattery).ToString())
                                     {
                                         upsData.DeviceMode = DeviceMode.Battery;
