@@ -56,14 +56,32 @@ namespace snmpget
         {
             public class OID
             {
-                public static readonly ObjectIdentifier ManufacturerOid = new ObjectIdentifier(".1.3.6.1.2.1.33.1.1.1.0");
+                public static readonly ObjectIdentifier Manufacturer = new ObjectIdentifier(".1.3.6.1.2.1.33.1.1.1.0");
+                public static readonly ObjectIdentifier Ipv4DHCPEnabled = new ObjectIdentifier(".1.3.6.1.4.1.12918.11.5.1.1.0");
+                public static readonly ObjectIdentifier Ipv4IP = new ObjectIdentifier(".1.3.6.1.4.1.12918.11.5.1.2.0");
+                public static readonly ObjectIdentifier AutoRestart = new ObjectIdentifier(".1.3.6.1.2.1.33.1.8.5.0");
             }
 
             public class Variables
             {
-                public static readonly Variable ManufacturerOid = new Variable(OID.ManufacturerOid);
+                public static readonly Variable Manufacturer = new Variable(OID.Manufacturer);
+                public static readonly Variable Ipv4DHCPEnabled = new Variable(OID.Ipv4DHCPEnabled);
+                public static readonly Variable Ipv4IP = new Variable(OID.Ipv4IP);
+                public static readonly Variable AutoRestart = new Variable(OID.AutoRestart);
+            }
+        }
+
+        public class Command
+        {
+            public class OID
+            {
+                public static readonly ObjectIdentifier ControlConfig = new ObjectIdentifier(".1.3.6.1.4.1.12918.11.4.1.0");
             }
 
+            public class Variables
+            {
+                public static readonly Variable ControlConfig = new Variable(OID.ControlConfig);
+            }
         }
     }
 }

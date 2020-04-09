@@ -17,7 +17,7 @@ namespace SnmpGet
     internal static class Program
     {
         private static UPSData _lastKnownData;
-        
+
         private static List<Variable> _upsStatVariableList;
         private static List<Variable> _upsInformationVariables;
 
@@ -48,66 +48,98 @@ namespace SnmpGet
                 MinimumLevel = Options.LogLevel
             };
 
-            Log.Logger = new LoggerConfiguration().MinimumLevel.ControlledBy(levelSwitch).Enrich.FromLogContext().WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{Properties}] {Message:lj}{NewLine}{Exception}").WriteTo
+            Log.Logger = new LoggerConfiguration().MinimumLevel.ControlledBy(levelSwitch).Enrich.FromLogContext().WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}").WriteTo
                 .File("log.txt", rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true).CreateLogger();
 
-            //Level Options
-            ValidateAndCorrectOptionalOptions();
-
             Log.Information("Using {Options}", Options);
-
-            _version = VersionCode.V1;
-
-            List<Variable> _upsInformationVariables = new List<Variable>
-            {
-                UPS.Information.Variables.ManufacturerOid
-            };
-
-            _upsStatVariableList = new List<Variable>
-            {
-                UPS.Stat.Variables.BatteryStatus,
-                UPS.Stat.Variables.OutputSource,
-                UPS.Stat.Variables.ChargeRemainingInPercentage,
-                UPS.Stat.Variables.ChargeRemainingInMinutes,
-                UPS.Stat.Variables.SecondsOnBattery
-            };
-            switch (_company)
-            {
-                case Company.Triplite:
-                    _upsStatVariableList.Add(UPS.Stat.Variables.BatteryOutputPower_TripLite);
-                    break;
-                default:
-                    _upsStatVariableList.Add(UPS.Stat.Variables.BatteryOutputPower_Astrodyne);
-                    break;
-            }
-
+            //Level Options
             try
             {
-                switch (Options.Operation)
+                ValidateAndCorrectOptionalOptions();
+
+                _version = VersionCode.V1;
+
+                _upsInformationVariables = new List<Variable>
                 {
-                    case OperationType.Information:
-                        break;
-                    case OperationType.Stats:
-                        var timer = new Timer(CaptureUPSData, null, 1000, 1000);
-                        break;
-                    case OperationType.Write:
+                    UPS.Information.Variables.Manufacturer,
+                    UPS.Information.Variables.AutoRestart,
+                    UPS.Information.Variables.Ipv4DHCPEnabled,
+                    UPS.Information.Variables.Ipv4IP
+                };
+
+                _upsStatVariableList = new List<Variable>
+                {
+                    UPS.Stat.Variables.BatteryStatus,
+                    UPS.Stat.Variables.OutputSource,
+                    UPS.Stat.Variables.ChargeRemainingInPercentage,
+                    UPS.Stat.Variables.ChargeRemainingInMinutes,
+                    UPS.Stat.Variables.SecondsOnBattery
+                };
+                switch (_company)
+                {
+                    case Company.Triplite:
+                        _upsStatVariableList.Add(UPS.Stat.Variables.BatteryOutputPower_TripLite);
                         break;
                     default:
-                        throw new ArgumentOutOfRangeException();
+                        _upsStatVariableList.Add(UPS.Stat.Variables.BatteryOutputPower_Astrodyne);
+                        break;
+                }
+
+                try
+                {
+                    switch (Options.Operation)
+                    {
+                        case OperationType.Information:
+                            ShowUPSInformation();
+                            break;
+                        case OperationType.Stats:
+                            var timer = new Timer(CaptureUPSData, null, 1000, 1000);
+                            break;
+                        case OperationType.Write:
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException();
+                    }
+                    Log.Information("Press enter key to exit the application.");
+                    Console.ReadLine();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "");
                 }
             }
-            catch (SnmpException ex)
+            catch (Exception exception)
             {
-                Log.Error(ex, ex.Message);
-            }
-            catch (SocketException ex)
-            {
-                Log.Error(ex, ex.Message);
+                Log.Error(exception, "Error in execution");
             }
 
-            Log.Information("Press enter key to exit the application.");
-            Console.ReadLine();
             Log.CloseAndFlush();
+        }
+
+        private static void ShowUPSInformation()
+        {
+            var receiver = new IPEndPoint(IPAddress, 161);
+            var upsInformation = new UPSInformation();
+            foreach (Variable item in Messenger.Get(_version, receiver, new OctetString(_community), _upsInformationVariables, _timeout))
+            {
+                if (item.Id == UPS.Information.OID.Manufacturer)
+                {
+                    upsInformation.Manufacturer = item.Data.ToString();
+                }
+                else if (item.Id == UPS.Information.OID.Ipv4IP)
+                {
+                    upsInformation.Ipv4IP = item.Data.ToString();
+                }
+                else if (item.Id == UPS.Information.OID.Ipv4DHCPEnabled)
+                {
+                    upsInformation.Ipv4DHCPEnabled = Convert.ToInt32(item.Data.ToString()) > 0;
+                }
+                else if (item.Id == UPS.Information.OID.AutoRestart)
+                {
+                    upsInformation.AutoRestart = Convert.ToInt32(item.Data.ToString()) > 0;
+                }
+            }
+            Log.Information("{@UPSInformation}", upsInformation);
         }
 
         private static void ValidateAndCorrectOptionalOptions()
@@ -155,7 +187,7 @@ namespace SnmpGet
                     case Company.Triplite:
                         foreach (Variable item in Messenger.Get(_version, receiver, new OctetString(_community), _upsStatVariableList, _timeout))
                         {
-                            if (item.Id ==UPS.Stat.OID.BatteryStatus)
+                            if (item.Id == UPS.Stat.OID.BatteryStatus)
                             {
                                 upsData.BatteryStatus = (BatteryStatus)Convert.ToInt32(item.Data.ToString());
                             }

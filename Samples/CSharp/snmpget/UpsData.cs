@@ -3,12 +3,6 @@
     public class UPSData
     {
         /// <summary>
-        /// Property to store UPS Manufacturer.
-        /// </summary>
-        /// <value>The ups manufacturer.</value>
-        public string Manufacturer { get; set; }
-
-        /// <summary>
         /// Property to store UPS Charge Remaining In Minutes.
         /// </summary>
         /// <value>The estimate ups charge remaining in minutes.</value>
