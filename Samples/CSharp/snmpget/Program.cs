@@ -1,17 +1,10 @@
-﻿// typical usage
-// snmpget -c=public -v=1 localhost 1.3.6.1.2.1.1.1.0
-// snmpget -c=public -v=2 localhost 1.3.6.1.2.1.1.1.0
-// snmpget -v=3 -l=noAuthNoPriv -u=neither localhost 1.3.6.1.2.1.1.1.0
-// snmpget -v=3 -l=authNoPriv -a=MD5 -A=authentication -u=authen localhost 1.3.6.1.2.1.1.1.0
-// snmpget -v=3 -l=authPriv -a=MD5 -A=authentication -x=DES -X=privacyphrase -u=privacy localhost 1.3.6.1.2.1.1.1.0
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Reflection;
 using System.Threading;
+using System.Threading.Tasks;
 using CommandLine;
 using Lextm.SharpSnmpLib;
 using Lextm.SharpSnmpLib.Messaging;
@@ -24,26 +17,24 @@ namespace SnmpGet
     internal static class Program
     {
         private static UPSData _lastKnownData;
-        private static readonly ObjectIdentifier UPSBatteryStatusOid = new ObjectIdentifier(".1.3.6.1.2.1.33.1.2.1.0");
-        private static readonly ObjectIdentifier UPSBatteryOutputPower_Astrodyne = new ObjectIdentifier(".1.3.6.1.2.1.33.1.4.4.1.4.0");
-        private static readonly ObjectIdentifier UPSBatteryOutputPower_TripLite = new ObjectIdentifier(".1.3.6.1.2.1.33.1.4.4.1.4.1");
-        private static readonly ObjectIdentifier UPSAlarmOnBattery = new ObjectIdentifier(".1.3.6.1.2.1.33.1.6.3.2");
-        private static readonly ObjectIdentifier UPSSecondsOnBattery = new ObjectIdentifier(".1.3.6.1.2.1.33.1.2.2.0");
-        private static readonly ObjectIdentifier UPSOutputSourceOid = new ObjectIdentifier(".1.3.6.1.2.1.33.1.4.1.0");
-        private static readonly ObjectIdentifier UPSChargeRemainingInPercentageOid = new ObjectIdentifier(".1.3.6.1.2.1.33.1.2.4.0");
-        private static readonly ObjectIdentifier UPSChargeRemainingInMinutesOid = new ObjectIdentifier(".1.3.6.1.2.1.33.1.2.3.0");
-        private static readonly ObjectIdentifier UPSManufacturerOid = new ObjectIdentifier(".1.3.6.1.2.1.33.1.1.1.0");
-        private static readonly ObjectIdentifier UPSAlarmTable = new ObjectIdentifier(".1.3.6.1.2.1.33.1.6.2");
-        private static List<Variable> _variableList;
+        
+        private static List<Variable> _upsStatVariableList;
+        private static List<Variable> _upsInformationVariables;
+
         //private static IPAddress _ip;
         private static VersionCode _version = VersionCode.V1;
         private static string _community = "public";
         private static int _timeout = 1000;
         private static Company _company = Company.Astrodyne;
+
         /// <summary>
         /// Holds the options for the extractor
         /// </summary>
         private static readonly Options Options = new Options();
+
+        public static IPAddress IPAddress { get; set; }
+
+        public static IPAddress NewIPAddress { get; set; }
 
         public static void Main(string[] args)
         {
@@ -57,10 +48,8 @@ namespace SnmpGet
                 MinimumLevel = Options.LogLevel
             };
 
-            Log.Logger = new LoggerConfiguration().MinimumLevel.ControlledBy(levelSwitch).Enrich.FromLogContext()
-                .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{Properties}] {Message:lj}{NewLine}{Exception}")
-                .WriteTo.File("log.txt", rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true)
-                .CreateLogger();
+            Log.Logger = new LoggerConfiguration().MinimumLevel.ControlledBy(levelSwitch).Enrich.FromLogContext().WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{Properties}] {Message:lj}{NewLine}{Exception}").WriteTo
+                .File("log.txt", rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true).CreateLogger();
 
             //Level Options
             ValidateAndCorrectOptionalOptions();
@@ -69,30 +58,42 @@ namespace SnmpGet
 
             _version = VersionCode.V1;
 
-            _variableList = new List<Variable>
+            List<Variable> _upsInformationVariables = new List<Variable>
             {
-                new Variable(UPSBatteryStatusOid),
-                new Variable(UPSOutputSourceOid),
-                new Variable(UPSChargeRemainingInPercentageOid),
-                new Variable(UPSChargeRemainingInMinutesOid),
-                new Variable(UPSManufacturerOid),
-                new Variable(UPSSecondsOnBattery),
+                UPS.Information.Variables.ManufacturerOid
+            };
+
+            _upsStatVariableList = new List<Variable>
+            {
+                UPS.Stat.Variables.BatteryStatus,
+                UPS.Stat.Variables.OutputSource,
+                UPS.Stat.Variables.ChargeRemainingInPercentage,
+                UPS.Stat.Variables.ChargeRemainingInMinutes,
+                UPS.Stat.Variables.SecondsOnBattery
             };
             switch (_company)
             {
                 case Company.Triplite:
-                    _variableList.Add(new Variable(UPSBatteryOutputPower_TripLite));
+                    _upsStatVariableList.Add(UPS.Stat.Variables.BatteryOutputPower_TripLite);
                     break;
                 default:
-                    _variableList.Add(new Variable(UPSBatteryOutputPower_Astrodyne));
+                    _upsStatVariableList.Add(UPS.Stat.Variables.BatteryOutputPower_Astrodyne);
                     break;
             }
 
             try
             {
-                if (_version != VersionCode.V3)
+                switch (Options.Operation)
                 {
-                    //var timer = new Timer(CaptureUPSData, null, 1000, 1000);
+                    case OperationType.Information:
+                        break;
+                    case OperationType.Stats:
+                        var timer = new Timer(CaptureUPSData, null, 1000, 1000);
+                        break;
+                    case OperationType.Write:
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException();
                 }
             }
             catch (SnmpException ex)
@@ -117,19 +118,18 @@ namespace SnmpGet
             }
 
             //Parse IP Address fields
-            Options.IPAddress = ParseIPAddress(Options.Address);
-            Options.NewIPAddress = ParseIPAddress(Options.NewAddress);
+            IPAddress = ParseIPAddress(Options.Address);
+            NewIPAddress = ParseIPAddress(Options.NewAddress);
         }
 
         private static IPAddress ParseIPAddress(string ipAddress)
         {
-            var parsed = IPAddress.TryParse(ipAddress, out var _ip);
+            bool parsed = IPAddress.TryParse(ipAddress, out IPAddress _ip);
             if (!parsed)
             {
-                var addresses = Dns.GetHostAddressesAsync(ipAddress);
+                Task<IPAddress[]> addresses = Dns.GetHostAddressesAsync(ipAddress);
                 addresses.Wait();
-                foreach (var address in
-                    addresses.Result.Where(address => address.AddressFamily == AddressFamily.InterNetwork))
+                foreach (IPAddress address in addresses.Result.Where(address => address.AddressFamily == AddressFamily.InterNetwork))
                 {
                     _ip = address;
                     break;
@@ -146,99 +146,99 @@ namespace SnmpGet
 
         private static void CaptureUPSData(object state)
         {
-            var receiver = new IPEndPoint(Options.IPAddress, 161);
+            var receiver = new IPEndPoint(IPAddress, 161);
             var upsData = new UPSData();
             try
             {
                 switch (_company)
                 {
                     case Company.Triplite:
-                        foreach (var item in Messenger.Get(_version, receiver, new OctetString(_community), _variableList, _timeout))
+                        foreach (Variable item in Messenger.Get(_version, receiver, new OctetString(_community), _upsStatVariableList, _timeout))
                         {
-                            if (item.Id == UPSBatteryStatusOid)
+                            if (item.Id ==UPS.Stat.OID.BatteryStatus)
+                            {
                                 upsData.BatteryStatus = (BatteryStatus)Convert.ToInt32(item.Data.ToString());
-                            else if (item.Id == UPSChargeRemainingInMinutesOid)
+                            }
+                            else if (item.Id == UPS.Stat.OID.ChargeRemainingInMinutes)
+                            {
                                 upsData.BatteryRemainingInMinutes = Convert.ToInt32(item.Data.ToString());
-                            else if (item.Id == UPSChargeRemainingInPercentageOid)
+                            }
+                            else if (item.Id == UPS.Stat.OID.ChargeRemainingInMinutes)
+                            {
                                 upsData.BatteryChargeRemainingInPercentage = Convert.ToInt32(item.Data.ToString());
-                            else if (item.Id == UPSManufacturerOid)
-                                upsData.Manufacturer = item.Data.ToString();
-                            else if (item.Id == UPSOutputSourceOid)
+                            }
+                            else if (item.Id == UPS.Stat.OID.OutputSource)
+                            {
                                 upsData.DeviceMode = (DeviceMode)Convert.ToInt32(item.Data.ToString());
-                            else if (item.Id == UPSSecondsOnBattery)
+                            }
+                            else if (item.Id == UPS.Stat.OID.SecondsOnBattery)
+                            {
                                 upsData.SecondsOnBattery = Convert.ToInt32(item.Data.ToString());
-                            else if (item.Id == UPSBatteryOutputPower_TripLite)
+                            }
+                            else if (item.Id == UPS.Stat.OID.BatteryOutputPower_TripLite)
+                            {
                                 upsData.BatteryOutputPower = Convert.ToInt32(item.Data.ToString());
+                            }
                         }
 
                         break;
                     default:
-                        bool tableMode = false;
                         //initialize
                         upsData.DeviceMode = DeviceMode.Normal;
                         upsData.BatteryStatus = BatteryStatus.Normal;
 
-                        foreach (var item in Messenger.Get(_version, receiver, new OctetString(_community), _variableList, _timeout))
-                            if (item.Id == UPSChargeRemainingInMinutesOid)
-                                upsData.BatteryRemainingInMinutes = Convert.ToInt32(item.Data.ToString());
-                            else if (item.Id == UPSChargeRemainingInPercentageOid)
-                                upsData.BatteryChargeRemainingInPercentage = Convert.ToInt32(item.Data.ToString());
-                            else if (item.Id == UPSManufacturerOid)
-                                upsData.Manufacturer = item.Data.ToString();
-                            else if (item.Id == UPSSecondsOnBattery)
-                                upsData.SecondsOnBattery = Convert.ToInt32(item.Data.ToString());
-                            else if (item.Id == UPSBatteryOutputPower_Astrodyne)
-                                upsData.BatteryOutputPower = Convert.ToInt32(item.Data.ToString());
-
-                        if (tableMode)
+                        foreach (Variable item in Messenger.Get(_version, receiver, new OctetString(_community), _upsStatVariableList, _timeout))
                         {
-                            foreach (var variable in Messenger.GetTable(_version, receiver, new OctetString(_community), UPSAlarmTable, 10000, 100000))
+                            if (item.Id == UPS.Stat.OID.ChargeRemainingInMinutes)
                             {
-                                if (variable.Id.TypeCode == SnmpType.ObjectIdentifier)
-                                {
-                                    if (variable.Id.ToString() == Alarms.UPSAlarmLowBattery)
-                                        upsData.BatteryStatus = BatteryStatus.Low;
-                                    if (variable.Id.ToString() == Alarms.UPSAlarmOnBattery)
-                                        upsData.DeviceMode = DeviceMode.Battery;
-                                    else if (variable.Id.ToString() == Alarms.UPSAlarmDepletedBattery)
-                                        upsData.BatteryStatus = BatteryStatus.Depleted;
-                                }
+                                upsData.BatteryRemainingInMinutes = Convert.ToInt32(item.Data.ToString());
                             }
+                            else if (item.Id == UPS.Stat.OID.ChargeRemainingInPercentage)
+                            {
+                                upsData.BatteryChargeRemainingInPercentage = Convert.ToInt32(item.Data.ToString());
+                            }
+                            else if (item.Id == UPS.Stat.OID.SecondsOnBattery)
+                            {
+                                upsData.SecondsOnBattery = Convert.ToInt32(item.Data.ToString());
+                            }
+                            else if (item.Id == UPS.Stat.OID.BatteryOutputPower_Astrodyne)
+                            {
+                                upsData.BatteryOutputPower = Convert.ToInt32(item.Data.ToString());
+                            }
+                        }
+
+                        var variables = new List<Variable>
+                        {
+                            UPS.Alarm.Variables.LowBattery,
+                            UPS.Alarm.Variables.OnBattery,
+                            UPS.Alarm.Variables.DepletedBattery
+                        };
+                        int itemCount = Messenger.Walk(_version, receiver, new OctetString(_community), UPS.Alarm.OID.Table, variables, _timeout, WalkMode.WithinSubtree);
+
+                        if (itemCount == 0)
+                        {
+                            Log.Verbose("nothing in the alarm table");
                         }
                         else
                         {
-                            var variables = new List<Variable>
+                            foreach (Variable variable in variables.Where(variable => variable.Data.TypeCode == SnmpType.ObjectIdentifier))
                             {
-                                new Variable(new ObjectIdentifier(Alarms.UPSAlarmLowBattery)),
-                                new Variable(new ObjectIdentifier(Alarms.UPSAlarmOnBattery)),
-                                new Variable(new ObjectIdentifier(Alarms.UPSAlarmDepletedBattery))
-                            };
-                            var itemCount = Messenger.Walk(_version, receiver, new OctetString(_community), UPSAlarmTable, variables, _timeout, WalkMode.WithinSubtree);
-
-                            if (itemCount == 0)
-                            {
-                                Log.Verbose("nothing in the alarm table");
-                            }
-                            else
-                            {
-                                foreach (var variable in variables.Where(variable => variable.Data.TypeCode == SnmpType.ObjectIdentifier))
+                                Log.Verbose("Alarm data {@Id}, {@Data}", variable.Id.ToString(), variable.Data.ToString());
+                                if (variable.Data.ToString() == UPS.Alarm.OID.OnBattery.ToString())
                                 {
-                                    Log.Verbose("Alarm data {@Id}, {@Data}", variable.Id.ToString(), variable.Data.ToString());
-                                    if (variable.Data.ToString() == new ObjectIdentifier(Alarms.UPSAlarmOnBattery).ToString())
-                                    {
-                                        upsData.DeviceMode = DeviceMode.Battery;
-                                    }
-                                    else if (variable.Data.ToString() == new ObjectIdentifier(Alarms.UPSAlarmLowBattery).ToString())
-                                    {
-                                        upsData.BatteryStatus = BatteryStatus.Low;
-                                    }
-                                    else if (variable.Data.ToString() == new ObjectIdentifier(Alarms.UPSAlarmDepletedBattery).ToString())
-                                    {
-                                        upsData.BatteryStatus = BatteryStatus.Depleted;
-                                    }
+                                    upsData.DeviceMode = DeviceMode.Battery;
+                                }
+                                else if (variable.Data.ToString() == UPS.Alarm.OID.LowBattery.ToString())
+                                {
+                                    upsData.BatteryStatus = BatteryStatus.Low;
+                                }
+                                else if (variable.Data.ToString() == UPS.Alarm.OID.DepletedBattery.ToString())
+                                {
+                                    upsData.BatteryStatus = BatteryStatus.Depleted;
                                 }
                             }
                         }
+
                         break;
                 }
 
@@ -260,9 +260,7 @@ namespace SnmpGet
             }
             else
             {
-                if (_lastKnownData.BatteryChargeRemainingInPercentage != upsData.BatteryChargeRemainingInPercentage ||
-                    _lastKnownData.BatteryRemainingInMinutes != upsData.BatteryRemainingInMinutes ||
-                    _lastKnownData.BatteryStatus != upsData.BatteryStatus ||
+                if (_lastKnownData.BatteryChargeRemainingInPercentage != upsData.BatteryChargeRemainingInPercentage || _lastKnownData.BatteryRemainingInMinutes != upsData.BatteryRemainingInMinutes || _lastKnownData.BatteryStatus != upsData.BatteryStatus ||
                     _lastKnownData.DeviceMode != upsData.DeviceMode)
                 {
                     Log.Information("{@UPSData}", upsData);

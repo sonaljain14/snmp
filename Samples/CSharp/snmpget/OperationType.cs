@@ -1,12 +1,13 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 
-namespace SnmpGet
+namespace snmpget
 {
     [JsonConverter(typeof(StringEnumConverter))]
-    public enum Company
+    internal enum OperationType
     {
-        Astrodyne = 0,
-        Triplite = 1
+        Information,
+        Stats,
+        Write
     }
 }

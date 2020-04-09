@@ -1,7 +1,8 @@
 {
   "profiles": {
     "snmpget": {
-      "commandName": "Project"
+      "commandName": "Project",
+      "commandLineArgs": "--company triplite -a 127.0.0.1"
     }
   }
 }

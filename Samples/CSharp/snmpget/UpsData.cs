@@ -41,7 +41,5 @@
         public int SecondsOnBattery { get; set; }
 
         public int BatteryOutputPower { get; set; }
-
-        
     }
 }

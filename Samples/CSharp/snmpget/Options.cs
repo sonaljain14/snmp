@@ -1,12 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
-using System.Text;
-using System.Threading.Tasks;
 using CommandLine;
 using CommandLine.Text;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 using Serilog.Events;
 using SnmpGet;
 
@@ -14,6 +10,11 @@ namespace snmpget
 {
     internal class Options
     {
+        public Options()
+        {
+            LogLevel = LogEventLevel.Debug;
+        }
+
         /// <summary>
         /// Gets or sets the log level.
         /// </summary>
@@ -21,27 +22,23 @@ namespace snmpget
         /// The log level.
         /// </value>
         [Option('l', "logLevel", Required = false, HelpText = "Logging level", DefaultValue = LogEventLevel.Information)]
+        [JsonConverter(typeof(StringEnumConverter))]
         public LogEventLevel LogLevel { get; set; }
 
         [Option("company", Required = false, HelpText = "company Type", DefaultValue = Company.Astrodyne)]
         public Company Company { get; set; }
 
+        [Option('o', "operation", Required = false, HelpText = "What operation to perform", DefaultValue = OperationType.Information)]
+        public OperationType Operation { get; set; }
+
         [Option('t', "timeout", Required = false, HelpText = "Time Out", DefaultValue = 1000)]
         public int TimeOut { get; set; }
 
-        public Options()
-        {
-            LogLevel = LogEventLevel.Debug;
-        }
         [Option('c', "community", Required = false, HelpText = "Community", DefaultValue = "public")]
         public string Community { get; set; }
 
         [Option('a', "address", Required = true, HelpText = "IP Address")]
         public string Address { get; set; }
-
-        public IPAddress IPAddress { get; set; }
-
-        public IPAddress NewIPAddress { get; set; }
 
         [Option('n', "newaddress", Required = false, HelpText = "New IP Address. If nothing is provided then IP Address will be reused.")]
         public string NewAddress { get; set; }
