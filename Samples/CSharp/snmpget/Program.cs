@@ -12,19 +12,15 @@ using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Threading;
+using CommandLine;
 using Lextm.SharpSnmpLib;
 using Lextm.SharpSnmpLib.Messaging;
-using Mono.Options;
 using Serilog;
+using Serilog.Core;
 using snmpget;
 
 namespace SnmpGet
 {
-    public enum Company
-    {
-        Astrodyne = 0,
-        Triplite = 1
-    }
     internal static class Program
     {
         private static UPSData _lastKnownData;
@@ -39,141 +35,39 @@ namespace SnmpGet
         private static readonly ObjectIdentifier UPSManufacturerOid = new ObjectIdentifier(".1.3.6.1.2.1.33.1.1.1.0");
         private static readonly ObjectIdentifier UPSAlarmTable = new ObjectIdentifier(".1.3.6.1.2.1.33.1.6.2");
         private static List<Variable> _variableList;
-        private static IPAddress _ip;
+        //private static IPAddress _ip;
         private static VersionCode _version = VersionCode.V1;
         private static string _community = "public";
         private static int _timeout = 1000;
         private static Company _company = Company.Astrodyne;
-
+        /// <summary>
+        /// Holds the options for the extractor
+        /// </summary>
+        private static readonly Options Options = new Options();
 
         public static void Main(string[] args)
         {
-            Log.Logger = new LoggerConfiguration().ReadFrom.AppSettings()
-                //.WriteTo.Console()
-                //.WriteTo.File("log.log", rollingInterval: RollingInterval.Day)
+            if (!Parser.Default.ParseArguments(args, Options))
+            {
+                return;
+            }
+
+            var levelSwitch = new LoggingLevelSwitch
+            {
+                MinimumLevel = Options.LogLevel
+            };
+
+            Log.Logger = new LoggerConfiguration().MinimumLevel.ControlledBy(levelSwitch).Enrich.FromLogContext()
+                .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{Properties}] {Message:lj}{NewLine}{Exception}")
+                .WriteTo.File("log.txt", rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true)
                 .CreateLogger();
 
-            var showHelp = false;
-            var showVersion = false;
+            //Level Options
+            ValidateAndCorrectOptionalOptions();
 
-            var p = new OptionSet()
-                .Add("c:", "Community name, (default is public)", delegate (string v)
-                {
-                    if (v != null) _community = v;
-                })
-                .Add("l:", "Security level, (default is noAuthNoPriv)", delegate (string v)
-                {
-                    if (v.ToUpperInvariant() == "NOAUTHNOPRIV")
-                    {
-                    }
-                    else if (v.ToUpperInvariant() == "AUTHNOPRIV")
-                    {
-                    }
-                    else if (v.ToUpperInvariant() == "AUTHPRIV")
-                    {
-                    }
-                    else
-                        throw new ArgumentException("no such security mode: " + v);
-                })
-                .Add("a:", "Authentication method (MD5 or SHA)", delegate (string v) { })
-                .Add("A:", "Authentication passphrase", delegate (string v) { })
-                .Add("x:", "Privacy method", delegate (string v) { })
-                .Add("X:", "Privacy passphrase", delegate (string v) { })
-                .Add("u:", "Security name", delegate (string v) { })
-                .Add("C:", "Context name", delegate (string v) { })
-                .Add("h|?|help", "Print this help information.", delegate (string v) { showHelp = v != null; })
-                .Add("V", "Display version number of this application.", delegate (string v) { showVersion = v != null; })
-                .Add("d", "Display message dump", delegate (string v) { })
-                .Add("t:", "Timeout value (unit is second).", delegate (string v) { _timeout = int.Parse(v) * 1000; })
-                .Add("type:", "Astrodyne (default) or Triplite (t)", delegate (string v)
-                {
-                    if (string.IsNullOrWhiteSpace(v))
-                    {
-                        _company = Company.Astrodyne;
-                    }
-                    else if (v.ToLower() == "t")
-                    {
-                        _company = Company.Triplite;
-                    }
-                    else
-                    {
-                        _company = Company.Astrodyne;
-                    }
-                })
-                .Add("r:", "Retry count (default is 0)", delegate (string v) { })
-                .Add("v|version:", "SNMP version (1, 2, and 3 are currently supported)", delegate (string v)
-                {
-                    if (v == "2c") v = "2";
+            Log.Information("Using {Options}", Options);
 
-                    switch (int.Parse(v))
-                    {
-                        case 1:
-                            _version = VersionCode.V1;
-                            break;
-                        case 2:
-                            _version = VersionCode.V2;
-                            break;
-                        case 3:
-                            _version = VersionCode.V3;
-                            break;
-                        default:
-                            throw new ArgumentException("no such version: " + v);
-                    }
-                });
-
-            if (args.Length == 0)
-            {
-                ShowHelp(p);
-                return;
-            }
-
-            List<string> extra;
-            try
-            {
-                extra = p.Parse(args);
-            }
-            catch (OptionException ex)
-            {
-                Log.Error(ex, "Error in parsing options");
-                return;
-            }
-
-            if (showHelp)
-            {
-                ShowHelp(p);
-                return;
-            }
-
-            if (extra.Count < 1)
-            {
-                Log.Error("invalid variable number: {VariableCount}", extra.Count);
-                return;
-            }
-
-            if (showVersion)
-            {
-                Log.Information(Assembly.GetEntryAssembly().GetCustomAttribute<AssemblyVersionAttribute>().Version);
-                return;
-            }
-
-            var parsed = IPAddress.TryParse(extra[0], out _ip);
-            if (!parsed)
-            {
-                var addresses = Dns.GetHostAddressesAsync(extra[0]);
-                addresses.Wait();
-                foreach (var address in
-                    addresses.Result.Where(address => address.AddressFamily == AddressFamily.InterNetwork))
-                {
-                    _ip = address;
-                    break;
-                }
-
-                if (_ip == null)
-                {
-                    Log.Error("invalid host or wrong IP address found: {IPAddress}", extra[0]);
-                    return;
-                }
-            }
+            _version = VersionCode.V1;
 
             _variableList = new List<Variable>
             {
@@ -198,7 +92,7 @@ namespace SnmpGet
             {
                 if (_version != VersionCode.V3)
                 {
-                    var timer = new Timer(CaptureUPSData, null, 1000, 1000);
+                    //var timer = new Timer(CaptureUPSData, null, 1000, 1000);
                 }
             }
             catch (SnmpException ex)
@@ -215,9 +109,44 @@ namespace SnmpGet
             Log.CloseAndFlush();
         }
 
+        private static void ValidateAndCorrectOptionalOptions()
+        {
+            if (string.IsNullOrWhiteSpace(Options.NewAddress))
+            {
+                Options.NewAddress = Options.Address;
+            }
+
+            //Parse IP Address fields
+            Options.IPAddress = ParseIPAddress(Options.Address);
+            Options.NewIPAddress = ParseIPAddress(Options.NewAddress);
+        }
+
+        private static IPAddress ParseIPAddress(string ipAddress)
+        {
+            var parsed = IPAddress.TryParse(ipAddress, out var _ip);
+            if (!parsed)
+            {
+                var addresses = Dns.GetHostAddressesAsync(ipAddress);
+                addresses.Wait();
+                foreach (var address in
+                    addresses.Result.Where(address => address.AddressFamily == AddressFamily.InterNetwork))
+                {
+                    _ip = address;
+                    break;
+                }
+            }
+
+            if (_ip == null)
+            {
+                throw new ArgumentException("invalid ip address", nameof(ipAddress));
+            }
+
+            return _ip;
+        }
+
         private static void CaptureUPSData(object state)
         {
-            var receiver = new IPEndPoint(_ip, 161);
+            var receiver = new IPEndPoint(Options.IPAddress, 161);
             var upsData = new UPSData();
             try
             {
@@ -344,14 +273,6 @@ namespace SnmpGet
                     Log.Verbose("{@UPSData}", upsData);
                 }
             }
-        }
-
-        private static void ShowHelp(OptionSet optionSet)
-        {
-            Log.Information("#SNMP is available at https://sharpsnmp.com");
-            Log.Information("snmpget [Options] IP-address|host-name OID [OID] ...");
-            Log.Information("Options:");
-            Log.Information("Options Set {@OptionSet}", optionSet);
         }
     }
 }

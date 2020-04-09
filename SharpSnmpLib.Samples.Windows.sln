@@ -1,22 +1,19 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.25420.1
+# Visual Studio 15
+VisualStudioVersion = 15.0.28307.1062
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Samples", "Samples", "{A3DBD79B-05AE-487F-8863-9C777479FD4D}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "CSharp", "CSharp", "{1C549C6D-A12E-4565-B0E5-62B2C2D2EFC5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "snmpget", "Samples\CSharp\snmpget\snmpget.csproj", "{3A4AFEAC-A4F7-44E6-9860-1E033F0254AE}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "snmpget", "Samples\CSharp\snmpget\snmpget.csproj", "{3A4AFEAC-A4F7-44E6-9860-1E033F0254AE}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Debug|x64 = Debug|x64
 		Debug|x86 = Debug|x86
-		Perf|Any CPU = Perf|Any CPU
-		Perf|x64 = Perf|x64
-		Perf|x86 = Perf|x86
 		Release|Any CPU = Release|Any CPU
 		Release|x64 = Release|x64
 		Release|x86 = Release|x86
@@ -28,12 +25,6 @@ Global
 		{3A4AFEAC-A4F7-44E6-9860-1E033F0254AE}.Debug|x64.Build.0 = Debug|Any CPU
 		{3A4AFEAC-A4F7-44E6-9860-1E033F0254AE}.Debug|x86.ActiveCfg = Debug|Any CPU
 		{3A4AFEAC-A4F7-44E6-9860-1E033F0254AE}.Debug|x86.Build.0 = Debug|Any CPU
-		{3A4AFEAC-A4F7-44E6-9860-1E033F0254AE}.Perf|Any CPU.ActiveCfg = Release|Any CPU
-		{3A4AFEAC-A4F7-44E6-9860-1E033F0254AE}.Perf|Any CPU.Build.0 = Release|Any CPU
-		{3A4AFEAC-A4F7-44E6-9860-1E033F0254AE}.Perf|x64.ActiveCfg = Release|Any CPU
-		{3A4AFEAC-A4F7-44E6-9860-1E033F0254AE}.Perf|x64.Build.0 = Release|Any CPU
-		{3A4AFEAC-A4F7-44E6-9860-1E033F0254AE}.Perf|x86.ActiveCfg = Release|Any CPU
-		{3A4AFEAC-A4F7-44E6-9860-1E033F0254AE}.Perf|x86.Build.0 = Release|Any CPU
 		{3A4AFEAC-A4F7-44E6-9860-1E033F0254AE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3A4AFEAC-A4F7-44E6-9860-1E033F0254AE}.Release|Any CPU.Build.0 = Release|Any CPU
 		{3A4AFEAC-A4F7-44E6-9860-1E033F0254AE}.Release|x64.ActiveCfg = Release|Any CPU
