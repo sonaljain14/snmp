@@ -52,7 +52,12 @@ namespace snmpget
         [HelpOption]
         public string GetUsage()
         {
-            return HelpText.AutoBuild(this, current => HelpText.DefaultParsingErrorsHandler(this, current));
+            return HelpText.AutoBuild(this, current =>
+            {
+                current.AdditionalNewLineAfterOption = false;
+                current.AddDashesToOption = true;
+                HelpText.DefaultParsingErrorsHandler(this, current);
+            });
         }
 
         /// <summary>
