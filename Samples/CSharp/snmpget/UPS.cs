@@ -76,11 +76,9 @@ namespace snmpget
             public class OID
             {
                 public static readonly ObjectIdentifier ControlConfig = new ObjectIdentifier(".1.3.6.1.4.1.12918.11.4.1.0");
-            }
-
-            public class Variables
-            {
-                public static readonly Variable ControlConfig = new Variable(OID.ControlConfig);
+                public static readonly ObjectIdentifier Ipv4DHCPEnabled = new ObjectIdentifier(".1.3.6.1.4.1.12918.11.5.1.1.0");
+                public static readonly ObjectIdentifier Ipv4IP = new ObjectIdentifier(".1.3.6.1.4.1.12918.11.5.1.2.0");
+                public static readonly ObjectIdentifier AutoRestart = new ObjectIdentifier(".1.3.6.1.2.1.33.1.8.5.0");
             }
         }
     }

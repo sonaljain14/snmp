@@ -21,14 +21,14 @@ namespace snmpget
         /// <value>
         /// The log level.
         /// </value>
-        [Option('l', "logLevel", Required = false, HelpText = "Logging level", DefaultValue = LogEventLevel.Information)]
+        [Option('l', "logLevel", Required = false, HelpText = "Logging level: " + nameof(LogEventLevel.Information) + "|" + nameof(LogEventLevel.Debug) + "|" + nameof(LogEventLevel.Verbose), DefaultValue = LogEventLevel.Information)]
         [JsonConverter(typeof(StringEnumConverter))]
         public LogEventLevel LogLevel { get; set; }
 
-        [Option("company", Required = false, HelpText = "company Type", DefaultValue = Company.Astrodyne)]
+        [Option("company", Required = false, HelpText = "company Type: " + nameof(Company.Astrodyne) + "|" + nameof(Company.Triplite), DefaultValue = Company.Astrodyne)]
         public Company Company { get; set; }
 
-        [Option('o', "operation", Required = false, HelpText = "What operation to perform", DefaultValue = OperationType.Information)]
+        [Option('o', "operation", Required = false, HelpText = "What operation to perform: " + nameof(OperationType.Information) + "|" + nameof(OperationType.Stats) + "|" + nameof(OperationType.Write), DefaultValue = OperationType.Information)]
         public OperationType Operation { get; set; }
 
         [Option('t', "timeout", Required = false, HelpText = "Time Out", DefaultValue = 1000)]

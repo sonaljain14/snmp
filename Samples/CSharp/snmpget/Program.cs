@@ -17,15 +17,10 @@ namespace SnmpGet
     internal static class Program
     {
         private static UPSData _lastKnownData;
-
         private static List<Variable> _upsStatVariableList;
         private static List<Variable> _upsInformationVariables;
-
-        //private static IPAddress _ip;
+        private static List<Variable> _upsWriteVariables;
         private static VersionCode _version = VersionCode.V1;
-        private static string _community = "public";
-        private static int _timeout = 1000;
-        private static Company _company = Company.Astrodyne;
 
         /// <summary>
         /// Holds the options for the extractor
@@ -48,8 +43,7 @@ namespace SnmpGet
                 MinimumLevel = Options.LogLevel
             };
 
-            Log.Logger = new LoggerConfiguration().MinimumLevel.ControlledBy(levelSwitch).Enrich.FromLogContext().WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}").WriteTo
-                .File("log.txt", rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true).CreateLogger();
+            Log.Logger = new LoggerConfiguration().MinimumLevel.ControlledBy(levelSwitch).Enrich.FromLogContext().WriteTo.Console().WriteTo.File("log.txt", rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true).CreateLogger();
 
             Log.Information("Using {Options}", Options);
             //Level Options
@@ -75,7 +69,8 @@ namespace SnmpGet
                     UPS.Stat.Variables.ChargeRemainingInMinutes,
                     UPS.Stat.Variables.SecondsOnBattery
                 };
-                switch (_company)
+
+                switch (Options.Company)
                 {
                     case Company.Triplite:
                         _upsStatVariableList.Add(UPS.Stat.Variables.BatteryOutputPower_TripLite);
@@ -93,19 +88,22 @@ namespace SnmpGet
                             ShowUPSInformation();
                             break;
                         case OperationType.Stats:
+                            ShowUPSInformation();
                             var timer = new Timer(CaptureUPSData, null, 1000, 1000);
                             break;
                         case OperationType.Write:
+                            WriteSettingsToUPS();
                             break;
                         default:
                             throw new ArgumentOutOfRangeException();
                     }
+
                     Log.Information("Press enter key to exit the application.");
                     Console.ReadLine();
                 }
                 catch (Exception ex)
                 {
-                    Log.Error(ex, "");
+                    Log.Error(ex, "Error in operation");
                 }
             }
             catch (Exception exception)
@@ -116,11 +114,41 @@ namespace SnmpGet
             Log.CloseAndFlush();
         }
 
+        private static void WriteSettingsToUPS()
+        {
+            var upsWriteVariables = new List<Variable>
+            {
+                new Variable(UPS.Command.OID.Ipv4DHCPEnabled, new Integer32(0)),
+                new Variable(UPS.Command.OID.AutoRestart, new Integer32(1)),
+                new Variable(UPS.Command.OID.Ipv4IP, new IP(Options.NewAddress))
+            };
+            var receiver = new IPEndPoint(IPAddress, 161);
+
+            foreach (Variable variable in Messenger.Set(_version, receiver, new OctetString(Options.Community), upsWriteVariables, Options.TimeOut))
+            {
+                Log.Information("Response of set: {variableID} {variableType}", variable.Data.ToString(), variable.Id.ToString());
+            }
+
+            IList<Variable> controlConfigVariables = Messenger.Set(_version,
+                receiver,
+                new OctetString(Options.Community),
+                new List<Variable>
+                {
+                    new Variable(UPS.Command.OID.ControlConfig, new Integer32(1))
+                },
+                Options.TimeOut);
+
+            foreach (Variable controlConfigVariable in controlConfigVariables)
+            {
+                Log.Information("Response of set: {variableID} {variableType}", controlConfigVariable.Data.ToString(), controlConfigVariable.Id.ToString());
+            }
+        }
+
         private static void ShowUPSInformation()
         {
             var receiver = new IPEndPoint(IPAddress, 161);
             var upsInformation = new UPSInformation();
-            foreach (Variable item in Messenger.Get(_version, receiver, new OctetString(_community), _upsInformationVariables, _timeout))
+            foreach (Variable item in Messenger.Get(_version, receiver, new OctetString(Options.Community), _upsInformationVariables, Options.TimeOut))
             {
                 if (item.Id == UPS.Information.OID.Manufacturer)
                 {
@@ -139,6 +167,7 @@ namespace SnmpGet
                     upsInformation.AutoRestart = Convert.ToInt32(item.Data.ToString()) > 0;
                 }
             }
+
             Log.Information("{@UPSInformation}", upsInformation);
         }
 
@@ -182,10 +211,10 @@ namespace SnmpGet
             var upsData = new UPSData();
             try
             {
-                switch (_company)
+                switch (Options.Company)
                 {
                     case Company.Triplite:
-                        foreach (Variable item in Messenger.Get(_version, receiver, new OctetString(_community), _upsStatVariableList, _timeout))
+                        foreach (Variable item in Messenger.Get(_version, receiver, new OctetString(Options.Community), _upsStatVariableList, Options.TimeOut))
                         {
                             if (item.Id == UPS.Stat.OID.BatteryStatus)
                             {
@@ -219,7 +248,7 @@ namespace SnmpGet
                         upsData.DeviceMode = DeviceMode.Normal;
                         upsData.BatteryStatus = BatteryStatus.Normal;
 
-                        foreach (Variable item in Messenger.Get(_version, receiver, new OctetString(_community), _upsStatVariableList, _timeout))
+                        foreach (Variable item in Messenger.Get(_version, receiver, new OctetString(Options.Community), _upsStatVariableList, Options.TimeOut))
                         {
                             if (item.Id == UPS.Stat.OID.ChargeRemainingInMinutes)
                             {
@@ -245,7 +274,7 @@ namespace SnmpGet
                             UPS.Alarm.Variables.OnBattery,
                             UPS.Alarm.Variables.DepletedBattery
                         };
-                        int itemCount = Messenger.Walk(_version, receiver, new OctetString(_community), UPS.Alarm.OID.Table, variables, _timeout, WalkMode.WithinSubtree);
+                        int itemCount = Messenger.Walk(_version, receiver, new OctetString(Options.Community), UPS.Alarm.OID.Table, variables, Options.TimeOut, WalkMode.WithinSubtree);
 
                         if (itemCount == 0)
                         {

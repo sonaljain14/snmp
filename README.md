@@ -1,9 +1,13 @@
 
-//for astrodyne
+Get information
 ```batch
-snmpget.exe -v=1 -c=public 10.29.4.116
+snmpget.exe -l Debug -a 192.168.1.7 -n 192.168.1.7 -o Information
 ```
-//for triplite
+Get information and stats
+```batch
+snmpget.exe -l Debug -a 192.168.1.7 -n 192.168.1.7 -o Stats
 ```
-snmpget.exe -v=1 -c=public 10.29.4.117 -type:t
+Write settings
+```batch
+snmpget.exe -l Debug -a 192.168.1.7 -n 192.168.1.7 -o Write
 ```
